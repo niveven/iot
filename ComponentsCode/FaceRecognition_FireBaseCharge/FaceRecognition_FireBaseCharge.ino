@@ -14,6 +14,8 @@ unsigned long currentMillis = 0;
 unsigned long openedMillis = 0;
 long interval = 5000;           // open lock for ... milliseconds
 
+int MAGNETIC_INPUT_FROM_ARDUINO = 13;
+
 void connectWifi() {
   // Let us connect to WiFi
   WiFi.begin(ssid, password);
@@ -120,7 +122,7 @@ FirebaseData firebaseData;
 void setup() {
   Serial.begin(115200);
   connectWifi();
-  Firebase.begin("https://coffeeiot-c846f.firebaseio.com/User", "ZJqbWyM3KpiLSk7zLaPWC06JEnfsbT5bDov0Zr7K");
+  Firebase.begin("https://coffeeiot-c846f.firebaseio.com", "ZJqbWyM3KpiLSk7zLaPWC06JEnfsbT5bDov0Zr7K");
 
     digitalWrite(relayPin, LOW);
   pinMode(relayPin, OUTPUT);
@@ -166,28 +168,28 @@ void setup() {
 }
 
 void loop() {
-  int faceID_recognized = rzoCheckForFace();
-//  if (Firebase.getInt(firebaseData, "/" + faceID_recognized)) {
-//   if  (firebaseData.dataType() == "int") {
-//      int val = firebaseData.intData();
-//      Serial.println(val);
-//      delay(3000);
-//      }
-//    }
-  char temp[256] = "";
-  sprintf(temp, "/%d", faceID_recognized);
-  if (Firebase.getInt(firebaseData, temp)) {
-   if  (firebaseData.dataType() == "int") {
-      int val = firebaseData.intData();
-      if (val > 0){
-        temp[0] = 0;
-        sprintf(temp,"User %d Has %d" ,faceID_recognized, val);
-        Serial.println(temp);
-        temp[0] = 0;
-        sprintf(temp, "/%d", faceID_recognized);
-        Firebase.setInt(firebaseData, temp, val-1);
-        delay(5000);
+  int magnetic_detected = 0;
+  if(digitalRead(MAGNETIC_INPUT_FROM_ARDUINO)==HIGH) {
+    magnetic_detected = 1;
+  }
+  if(magnetic_detected == 1) {
+    int faceID_recognized = rzoCheckForFace();
+    char temp[256] = "";
+    sprintf(temp, "/%d", faceID_recognized);
+    if (Firebase.getInt(firebaseData, temp)) {
+     if  (firebaseData.dataType() == "int") {
+        int val = firebaseData.intData();
+        if (val > 0){
+          temp[0] = 0;
+          sprintf(temp,"User %d Has %d" ,faceID_recognized, val);
+          Serial.println(temp);
+          temp[0] = 0;
+          sprintf(temp, "/%d", faceID_recognized);
+          Firebase.setInt(firebaseData, temp, val-1);
+          delay(5000);
+          magnetic_detected = 0;
+        }
       }
     }
-  }
-}
+    }
+ }
