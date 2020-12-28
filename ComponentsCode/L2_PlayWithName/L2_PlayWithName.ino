@@ -71,15 +71,43 @@ int8_t volume = 0x1a;//0~0x1e (30 adjustable level)
 int8_t folderName = 0x01;//folder name must be 01 02 03 04 ...
 int8_t fileName = 0x01; // prefix of file name must be 001xxx 002xxx 003xxx 004xxx ...
 bool flag = false;
+
+int DATA_PIN = A0; 
+int CLOCK_PIN = A1;
+
+void transmitState(int* transmit){
+    analogWrite(CLOCK_PIN, 0);
+    delay(1000);
+    for (int i=0; i<4; i++){
+      analogWrite(DATA_PIN, (transmit[i])*600);
+       delay(5);
+      analogWrite(CLOCK_PIN, 600);
+      delay(100);
+      analogWrite(CLOCK_PIN, 0);
+      Serial.println((transmit[i])*600);
+      delay(500);
+    }
+    return;
+}
+
+int PLAY_MP3_SIGNAL = 2;
+int MAGNETIC_PIN_INPUT_COFFEE = 8;
+int MAGNETIC_PIN_INPUT_TEA = 9;
+int FLYING_FISH_INPUT_OUTER_BOX = 10;
+
 void setup()
 {
-  pinMode(2,INPUT);
+  pinMode(PLAY_MP3_SIGNAL,INPUT);
+  pinMode(MAGNETIC_PIN_INPUT_COFFEE,INPUT);
+  pinMode(MAGNETIC_PIN_INPUT_TEA,INPUT);
+  pinMode(FLYING_FISH_INPUT_OUTER_BOX,INPUT);
+  Serial.begin(9600);
 
 }
 
 void loop()
 {
-  if (digitalRead(2)==HIGH){
+  if (digitalRead(PLAY_MP3_SIGNAL)==HIGH){
     flag=true;
   }
   if (flag){
@@ -90,6 +118,22 @@ void loop()
     delay(8000);
     flag=false;    
   }
+
+  int state_COFFEE = digitalRead(MAGNETIC_PIN_INPUT_COFFEE);
+  int state_TEA = digitalRead(MAGNETIC_PIN_INPUT_TEA);
+  int state_OUTER_BOX = digitalRead(FLYING_FISH_INPUT_OUTER_BOX);
+  
+  int transmit[5] = {0};
+  transmit[0] = state_OUTER_BOX;
+  transmit[1] = state_TEA;
+  transmit[2] = state_COFFEE;
+  transmit[3] = 0;
+  transmit[4] = 0; //END of string (null)
+  for (int i=0 ; i<5 ; i++){
+  Serial.print(transmit[i]);
+  }
+  Serial.println(' ');
+  transmitState(transmit);
 }
 
 /*********************************************************************************************************

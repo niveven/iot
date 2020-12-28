@@ -27,10 +27,14 @@ const char* password = "204442321";
 ////////////////////////////////////////////
 // Pins Used in the project:;
 ////////////////////////////////////////////
-int OUTER_BOX_SENSOR_PIN = 15;
+
+int CLOCK_PIN = 15;
+int ARD_PIN = 13;
+
 int OUTPUT_TO_ARD_SPEAKER = 13;
-int INSIDE_BOX_TEA_PIN = 14;
-int INSIDE_BOX_COFFEE_PIN = 12;
+int OUTER_BOX_SENSOR_STATE = 0;
+int INSIDE_BOX_TEA_STATE = 0;
+int INSIDE_BOX_COFFEE_STATE = 0;
 int magnetic_detected = 0;
 int coffee_price = 1;
 int tea_price = 2;
@@ -163,9 +167,6 @@ void setup() {
   
   Serial.begin(115200);
   pinMode(OUTPUT_TO_ARD_SPEAKER,OUTPUT);
-  pinMode(OUTER_BOX_SENSOR_PIN, INPUT);
-  pinMode(INSIDE_BOX_TEA_PIN, INPUT);
-  pinMode(INSIDE_BOX_COFFEE_PIN, INPUT);
   connectWifi();
   Firebase.begin("https://coffeeiot-c846f.firebaseio.com", "ZJqbWyM3KpiLSk7zLaPWC06JEnfsbT5bDov0Zr7K");
 
@@ -217,20 +218,46 @@ void setup() {
 ////////////////////////////////////////////////////
 ////////////////////////////////////////////////////
 
+char ard_code[5] = {0};
+
 void loop() {
 
+// Reading the sensores state from Arduino:
+
+if (digitalRead(CLOCK_PIN)==LOW){
+  for (int i=0; i<4 ; i++){
+    if(digitalRead(CLOCK_PIN)==HIGH){
+      Serial.print(digitalRead(ARD_PIN));
+      Serial.print(' ');
+      Serial.println(i);
+      ard_code[i] = digitalRead(ARD_PIN);
+      delay(200);
+    }
+    else{
+      i--;
+    }
+  }
+}
+  OUTER_BOX_SENSOR_STATE = ard_code[0];
+  INSIDE_BOX_TEA_STATE = ard_code[1];
+  INSIDE_BOX_COFFEE_STATE = ard_code[2];
+
+
+  
+  //Serial.println(atoi(ard_code));
+   
   switch(state)
   {
 // Case 0: Standby mode, Case is closed, Waiting for a user to open the lid:
     case 0:
       Serial.println("CASE 0");
-      if(digitalRead(OUTER_BOX_SENSOR_PIN)==LOW)
+      if(OUTER_BOX_SENSOR_STATE == 1)
       {
         state = 1;
       }
       break;
       
-// Case 1: Lid is opened by a user, a voice prompt is sent:
+// Case 1: Outer lid is opened by a user, a voice prompt is sent:
     case 1:
       Serial.println("CASE 1");
       digitalWrite(OUTPUT_TO_ARD_SPEAKER,HIGH);
@@ -239,7 +266,7 @@ void loop() {
       state = 2;
       break;
 
-// Case 2: Lid is open & the voice propmt was made, starting voice recognition attempts(Face recognised - mpve to case #3, 20 failed attempts - back to state #1): 
+// Case 2: Outer lid is open & the voice propmt was made, starting voice recognition attempts(Face recognised - move to case #3, 20 failed attempts - back to state #1): 
     case 2:
       Serial.println("CASE 2");
       if (faceRecognitionCounter == 20) {
@@ -261,15 +288,15 @@ void loop() {
     case 3:
       Serial.println("CASE 3");
         cost = 0;
-        if((digitalRead(INSIDE_BOX_TEA_PIN) == LOW) || (digitalRead(INSIDE_BOX_COFFEE_PIN) == LOW)) 
+        if(INSIDE_BOX_TEA_STATE == 1 || INSIDE_BOX_COFFEE_STATE == 1)
         {
-          if(digitalRead(INSIDE_BOX_TEA_PIN) == LOW)
+          if (INSIDE_BOX_TEA_STATE == 1)
           {
             cost += tea_price;
             state = 4;
             break;
           }
-          if(digitalRead(INSIDE_BOX_COFFEE_PIN) == LOW) 
+          if(INSIDE_BOX_COFFEE_STATE == 1) 
           {
             cost += coffee_price;
             state = 5;
@@ -281,13 +308,13 @@ void loop() {
 // Case 4: Recognised that the coffee box was opened, updating the bill for the user:
     case 4:
       Serial.println("CASE 4");
-      if(digitalRead(INSIDE_BOX_COFFEE_PIN) == LOW)
+      if(INSIDE_BOX_COFFEE_STATE == 1)
       {
         cost += coffee_price;
         state = 6;
         break;
       }
-      else if(digitalRead(OUTER_BOX_SENSOR_PIN)== HIGH)
+      else if(OUTER_BOX_SENSOR_STATE == 0)
       {
         state = 6;
         break;
@@ -297,13 +324,13 @@ void loop() {
 // Case 5: Recognised that the tea box was opened, updating the bill for the user:      
      case 5:
       Serial.println("CASE 5");
-      if(digitalRead(INSIDE_BOX_TEA_PIN) == LOW)
+      if(INSIDE_BOX_TEA_STATE == 1)
       {
         cost += tea_price;
         state = 6;
         break;
       }
-      else if(digitalRead(OUTER_BOX_SENSOR_PIN)== HIGH)
+      else if(OUTER_BOX_SENSOR_STATE == 0)
       {
         state = 6;
         break;
