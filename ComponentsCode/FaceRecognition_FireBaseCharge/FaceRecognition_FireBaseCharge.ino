@@ -8,13 +8,47 @@
 #define relayPin 2 // pin 12 can also be used
 #define ENROLL_CONFIRM_TIMES 5
 #define FACE_ID_SAVE_NUMBER 7
-const char* ssid = "Oded2.4";
-const char* password = "67321daoa";
+
+
 unsigned long currentMillis = 0;
 unsigned long openedMillis = 0;
 long interval = 5000;           // open lock for ... milliseconds
 
-int MAGNETIC_INPUT_FROM_ARDUINO = 13;
+
+////////////////////////////////////////////
+////////////////////////////////////////////
+// WiFi parameters:                       
+////////////////////////////////////////////
+
+const char* ssid = "niv";
+const char* password = "204442321";
+
+////////////////////////////////////////////
+////////////////////////////////////////////
+// Pins Used in the project:;
+////////////////////////////////////////////
+int OUTER_BOX_SENSOR_PIN = 15;
+int OUTPUT_TO_ARD_SPEAKER = 13;
+int INSIDE_BOX_TEA_PIN = 14;
+int INSIDE_BOX_COFFEE_PIN = 12;
+int magnetic_detected = 0;
+int coffee_price = 1;
+int tea_price = 2;
+
+/////////////////////////////////////////
+/////////////////////////////////////////
+// Local variables used in the code:
+/////////////////////////////////////////
+int val = -1;
+int state = 0;
+int faceRecognitionCounter = 0;
+int cost = 0;
+int faceID_recognized = -1;
+char firebase_credit[256]= "";
+char str_id[256] = "";
+
+/////////////////////////////////////////
+
 
 void connectWifi() {
   // Let us connect to WiFi
@@ -117,14 +151,26 @@ int run_face_recognition() {
   return matched_id;
 }
 
-
+bool is_identified = false;
+bool is_sound_played = false;
 FirebaseData firebaseData;
+
+
+/////////////////////////////////////////////////////
+/////////////////////////////////////////////////////
+
 void setup() {
+  
   Serial.begin(115200);
+  pinMode(OUTPUT_TO_ARD_SPEAKER,OUTPUT);
+  pinMode(OUTER_BOX_SENSOR_PIN, INPUT);
+  pinMode(INSIDE_BOX_TEA_PIN, INPUT);
+  pinMode(INSIDE_BOX_COFFEE_PIN, INPUT);
   connectWifi();
   Firebase.begin("https://coffeeiot-c846f.firebaseio.com", "ZJqbWyM3KpiLSk7zLaPWC06JEnfsbT5bDov0Zr7K");
 
-    digitalWrite(relayPin, LOW);
+
+  digitalWrite(relayPin, LOW);
   pinMode(relayPin, OUTPUT);
  
   camera_config_t config;
@@ -167,29 +213,124 @@ void setup() {
   
 }
 
+
+////////////////////////////////////////////////////
+////////////////////////////////////////////////////
+
 void loop() {
-  int magnetic_detected = 0;
-  if(digitalRead(MAGNETIC_INPUT_FROM_ARDUINO)==HIGH) {
-    magnetic_detected = 1;
-  }
-  if(magnetic_detected == 1) {
-    int faceID_recognized = rzoCheckForFace();
-    char temp[256] = "";
-    sprintf(temp, "/%d", faceID_recognized);
-    if (Firebase.getInt(firebaseData, temp)) {
-     if  (firebaseData.dataType() == "int") {
-        int val = firebaseData.intData();
-        if (val > 0){
-          temp[0] = 0;
-          sprintf(temp,"User %d Has %d" ,faceID_recognized, val);
-          Serial.println(temp);
-          temp[0] = 0;
-          sprintf(temp, "/%d", faceID_recognized);
-          Firebase.setInt(firebaseData, temp, val-1);
-          delay(5000);
-          magnetic_detected = 0;
+
+  switch(state)
+  {
+// Case 0: Standby mode, Case is closed, Waiting for a user to open the lid:
+    case 0:
+      Serial.println("CASE 0");
+      if(digitalRead(OUTER_BOX_SENSOR_PIN)==LOW)
+      {
+        state = 1;
+      }
+      break;
+      
+// Case 1: Lid is opened by a user, a voice prompt is sent:
+    case 1:
+      Serial.println("CASE 1");
+      digitalWrite(OUTPUT_TO_ARD_SPEAKER,HIGH);
+      delay(100);
+      digitalWrite(OUTPUT_TO_ARD_SPEAKER,LOW);
+      state = 2;
+      break;
+
+// Case 2: Lid is open & the voice propmt was made, starting voice recognition attempts(Face recognised - mpve to case #3, 20 failed attempts - back to state #1): 
+    case 2:
+      Serial.println("CASE 2");
+      if (faceRecognitionCounter == 20) {
+        state = 1;
+        faceRecognitionCounter = 0;
+        break;
+      }
+      faceRecognitionCounter += 1;
+      faceID_recognized = rzoCheckForFace();
+      if(faceID_recognized >= 0) 
+      {
+        str_id[0] = 0;
+        sprintf(str_id, "/%d", faceID_recognized);
+        state = 3;
+      }
+      break;
+
+// Case 3: The User face was recognised, waiting for coffee/tea box to be opened:  
+    case 3:
+      Serial.println("CASE 3");
+        cost = 0;
+        if((digitalRead(INSIDE_BOX_TEA_PIN) == LOW) || (digitalRead(INSIDE_BOX_COFFEE_PIN) == LOW)) 
+        {
+          if(digitalRead(INSIDE_BOX_TEA_PIN) == LOW)
+          {
+            cost += tea_price;
+            state = 4;
+            break;
+          }
+          if(digitalRead(INSIDE_BOX_COFFEE_PIN) == LOW) 
+          {
+            cost += coffee_price;
+            state = 5;
+            break;
+          }
+        }
+        break;
+
+// Case 4: Recognised that the coffee box was opened, updating the bill for the user:
+    case 4:
+      Serial.println("CASE 4");
+      if(digitalRead(INSIDE_BOX_COFFEE_PIN) == LOW)
+      {
+        cost += coffee_price;
+        state = 6;
+        break;
+      }
+      else if(digitalRead(OUTER_BOX_SENSOR_PIN)== HIGH)
+      {
+        state = 6;
+        break;
+      }
+      break;
+
+// Case 5: Recognised that the tea box was opened, updating the bill for the user:      
+     case 5:
+      Serial.println("CASE 5");
+      if(digitalRead(INSIDE_BOX_TEA_PIN) == LOW)
+      {
+        cost += tea_price;
+        state = 6;
+        break;
+      }
+      else if(digitalRead(OUTER_BOX_SENSOR_PIN)== HIGH)
+      {
+        state = 6;
+        break;
+      }
+      break;
+      
+// Case 6: User finished purchase - update the DB:      
+    case 6:  //Charged customer in firebase 
+      Serial.println("CASE 6");
+      if(Firebase.getInt(firebaseData, str_id))
+      {
+        if(firebaseData.dataType() == "int") 
+        {
+          val = firebaseData.intData();
+          if (val > 0)
+          {
+            firebase_credit[0] = 0;
+            sprintf(firebase_credit,"User %d Has %d" ,faceID_recognized, val);
+            Serial.println(firebase_credit);
+            firebase_credit[0] = 0;
+            sprintf(firebase_credit, "/%d", faceID_recognized);
+            Firebase.setInt(firebaseData, str_id, val-cost);
+            state = 0;
+          }
+          faceRecognitionCounter = 0;
         }
       }
-    }
-    }
+      break;  
+  }
  }
