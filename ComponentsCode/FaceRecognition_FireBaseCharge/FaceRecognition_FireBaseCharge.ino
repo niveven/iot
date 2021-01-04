@@ -31,7 +31,9 @@ const char* password = "204442321";
 int CLOCK_PIN = 15;
 int ARD_PIN = 13;
 
-int OUTPUT_TO_ARD_SPEAKER = 13;
+int COMM_MP3_PIN = 3;
+int COMM_MP3_CLOCK_PIN = 2;
+//int OUTPUT_TO_ARD_SPEAKER = 13;
 int OUTER_BOX_SENSOR_STATE = 0;
 int INSIDE_BOX_TEA_STATE = 0;
 int INSIDE_BOX_COFFEE_STATE = 0;
@@ -50,7 +52,8 @@ int cost = 0;
 int faceID_recognized = -1;
 char firebase_credit[256]= "";
 char str_id[256] = "";
-
+ 
+ int transmit_MP3[5] = {0};
 /////////////////////////////////////////
 
 
@@ -160,13 +163,32 @@ bool is_sound_played = false;
 FirebaseData firebaseData;
 
 
+void transmitState(int* transmit){
+    digitalWrite(COMM_MP3_CLOCK_PIN, LOW);
+    Serial.print("Strating Transmit");
+    Serial.println(LOW);
+    delay(10000);
+    for (int i=0; i<4; i++){
+      digitalWrite(COMM_MP3_PIN, transmit[i]);
+       delay(25);
+      digitalWrite(COMM_MP3_CLOCK_PIN,HIGH);
+      delay(100);
+      digitalWrite(COMM_MP3_CLOCK_PIN, LOW);
+      Serial.println(transmit[i]);
+      delay(500);
+    }
+    return;
+}
+
 /////////////////////////////////////////////////////
 /////////////////////////////////////////////////////
+
+
 
 void setup() {
   
   Serial.begin(115200);
-  pinMode(OUTPUT_TO_ARD_SPEAKER,OUTPUT);
+  //pinMode(OUTPUT_TO_ARD_SPEAKER,OUTPUT);
   connectWifi();
   Firebase.begin("https://coffeeiot-c846f.firebaseio.com", "ZJqbWyM3KpiLSk7zLaPWC06JEnfsbT5bDov0Zr7K");
 
@@ -211,6 +233,9 @@ void setup() {
  
   face_id_init(&id_list, FACE_ID_SAVE_NUMBER, ENROLL_CONFIRM_TIMES);
   read_face_id_from_flash(&id_list);// Read current face data from on-board flash
+
+  pinMode(COMM_MP3_PIN,OUTPUT);
+  digitalWrite(COMM_MP3_CLOCK_PIN,HIGH);
   
 }
 
@@ -260,16 +285,26 @@ if (digitalRead(CLOCK_PIN)==LOW){
 // Case 1: Outer lid is opened by a user, a voice prompt is sent:
     case 1:
       Serial.println("CASE 1");
-      digitalWrite(OUTPUT_TO_ARD_SPEAKER,HIGH);
-      delay(100);
-      digitalWrite(OUTPUT_TO_ARD_SPEAKER,LOW);
+      //digitalWrite(OUTPUT_TO_ARD_SPEAKER,HIGH);
+      //delay(100);
+      //digitalWrite(OUTPUT_TO_ARD_SPEAKER,LOW);
       state = 2;
+      //PLAY GREETING SOUND:
+      transmit_MP3[0] = 1;
+      transmitState(transmit_MP3);
+      transmit_MP3[0] = 0;
+      
       break;
 
 // Case 2: Outer lid is open & the voice propmt was made, starting voice recognition attempts(Face recognised - move to case #3, 20 failed attempts - back to state #1): 
     case 2:
       Serial.println("CASE 2");
       if (faceRecognitionCounter == 20) {
+        //PLAY "FACE_FAIL" SOUND:
+        //transmit_MP3[2] = 1;
+        //transmitState(transmit_MP3);
+        //transmit_MP3[2] = 0;
+        //Change state back to begining:
         state = 1;
         faceRecognitionCounter = 0;
         break;
@@ -280,6 +315,11 @@ if (digitalRead(CLOCK_PIN)==LOW){
       {
         str_id[0] = 0;
         sprintf(str_id, "/%d", faceID_recognized);
+        //PLAY "FACE_OK" SOUND:
+        transmit_MP3[1] = 1;
+        transmitState(transmit_MP3);
+        transmit_MP3[1] = 0;
+        //change state:
         state = 3;
       }
       break;
@@ -358,6 +398,10 @@ if (digitalRead(CLOCK_PIN)==LOW){
           faceRecognitionCounter = 0;
         }
       }
+      //PLAY GOODBYE SOUND:
+      transmit_MP3[3] = 1;
+      transmitState(transmit_MP3);
+      transmit_MP3[3] = 0;
       break;  
   }
  }
