@@ -16,44 +16,68 @@ long interval = 5000;           // open lock for ... milliseconds
 
 
 ////////////////////////////////////////////
-////////////////////////////////////////////
 // WiFi parameters:                       
 ////////////////////////////////////////////
 
 const char* ssid = "niv";
 const char* password = "204442321";
 
+
 ////////////////////////////////////////////
-////////////////////////////////////////////
-// Pins Used in the project:;
+// Pins Used in the ESP:
 ////////////////////////////////////////////
 
+//comm *FROM* Arduino to ESP:
 int CLOCK_PIN = 15;
 int ARD_PIN = 13;
 
-int COMM_MP3_PIN = 3;
-int COMM_MP3_CLOCK_PIN = 2;
+//comm *FROM* ESP to Arduino: 
+int COMM_MP3_PIN = 2;
+int COMM_MP3_CLOCK_PIN = 3;
+
+//Not in use anymore;
 //int OUTPUT_TO_ARD_SPEAKER = 13;
+
+
+///////////////////////////////////////////
+// Initial state of machine sensors:
+///////////////////////////////////////////
+
 int OUTER_BOX_SENSOR_STATE = 0;
 int INSIDE_BOX_TEA_STATE = 0;
 int INSIDE_BOX_COFFEE_STATE = 0;
-int magnetic_detected = 0;
-int coffee_price = 1;
-int tea_price = 2;
 
-/////////////////////////////////////////
+//Not in use anymore;
+//int magnetic_detected = 0;
+
+
 /////////////////////////////////////////
 // Local variables used in the code:
 /////////////////////////////////////////
-int val = -1;
+
+int transmit_MP3[5] = {0};
+
+// Sensors and states' variables:
+int prev_state = 0;
 int state = 0;
-int faceRecognitionCounter = 0;
+char ard_code[5] = {0};
+
+// Prices for drinks:
+int coffee_price = 1;
+int tea_price = 2;
 int cost = 0;
+
+// Face recognition and DB variables:
+bool is_identified = false;
+bool is_sound_played = false;
+FirebaseData firebaseData;
+int faceRecognitionCounter = 0;
 int faceID_recognized = -1;
 char firebase_credit[256]= "";
 char str_id[256] = "";
- 
- int transmit_MP3[5] = {0};
+int val = -1;
+
+/////////////////////////////////////////
 /////////////////////////////////////////
 
 
@@ -68,6 +92,10 @@ void connectWifi() {
   Serial.println("WiFi Connected....IP Address:");
   Serial.println(WiFi.localIP());
 }
+
+
+//////////////////////////////////////////
+
 
 static inline mtmn_config_t app_mtmn_config()
 {
@@ -88,7 +116,11 @@ static inline mtmn_config_t app_mtmn_config()
   return mtmn_config;
 }
 mtmn_config_t mtmn_config = app_mtmn_config();
- 
+
+
+//////////////////////////////////////////////
+
+
 static face_id_list id_list = {0};
 dl_matrix3du_t *image_matrix =  NULL;
 camera_fb_t * fb = NULL;
@@ -108,6 +140,10 @@ int rzoCheckForFace() {
   }
   return faceID_recognized;
 }
+
+
+///////////////////////////////////////////////////////
+
 
 int run_face_recognition() {
   bool faceRecognised = false; // default
@@ -158,10 +194,9 @@ int run_face_recognition() {
   return matched_id;
 }
 
-bool is_identified = false;
-bool is_sound_played = false;
-FirebaseData firebaseData;
+////////////////////////////////////////////////////
 
+// Function transmits to Arduino what sound to play according to the "transmit array":
 
 void transmitState(int* transmit){
     digitalWrite(COMM_MP3_CLOCK_PIN, LOW);
@@ -177,8 +212,11 @@ void transmitState(int* transmit){
       Serial.println(transmit[i]);
       delay(500);
     }
+    digitalWrite(COMM_MP3_CLOCK_PIN,HIGH);
     return;
 }
+
+
 
 /////////////////////////////////////////////////////
 /////////////////////////////////////////////////////
@@ -234,43 +272,27 @@ void setup() {
   face_id_init(&id_list, FACE_ID_SAVE_NUMBER, ENROLL_CONFIRM_TIMES);
   read_face_id_from_flash(&id_list);// Read current face data from on-board flash
 
+  pinMode(CLOCK_PIN,INPUT);
+  pinMode(ARD_PIN,INPUT);
+
   pinMode(COMM_MP3_PIN,OUTPUT);
+  pinMode(COMM_MP3_CLOCK_PIN,OUTPUT);
   digitalWrite(COMM_MP3_CLOCK_PIN,HIGH);
-  
+  Serial.printf("FINISHED SETUP");
 }
 
 
+
 ////////////////////////////////////////////////////
 ////////////////////////////////////////////////////
 
-char ard_code[5] = {0};
+
 
 void loop() {
 
-// Reading the sensores state from Arduino:
+// Machine logic according to states:  
+  prev_state = state;
 
-if (digitalRead(CLOCK_PIN)==LOW){
-  for (int i=0; i<4 ; i++){
-    if(digitalRead(CLOCK_PIN)==HIGH){
-      Serial.print(digitalRead(ARD_PIN));
-      Serial.print(' ');
-      Serial.println(i);
-      ard_code[i] = digitalRead(ARD_PIN);
-      delay(200);
-    }
-    else{
-      i--;
-    }
-  }
-}
-  OUTER_BOX_SENSOR_STATE = ard_code[0];
-  INSIDE_BOX_TEA_STATE = ard_code[1];
-  INSIDE_BOX_COFFEE_STATE = ard_code[2];
-
-
-  
-  //Serial.println(atoi(ard_code));
-   
   switch(state)
   {
 // Case 0: Standby mode, Case is closed, Waiting for a user to open the lid:
@@ -278,6 +300,7 @@ if (digitalRead(CLOCK_PIN)==LOW){
       Serial.println("CASE 0");
       if(OUTER_BOX_SENSOR_STATE == 1)
       {
+        
         state = 1;
       }
       break;
@@ -311,6 +334,7 @@ if (digitalRead(CLOCK_PIN)==LOW){
       }
       faceRecognitionCounter += 1;
       faceID_recognized = rzoCheckForFace();
+      //faceID_recognized = 1;
       if(faceID_recognized >= 0) 
       {
         str_id[0] = 0;
@@ -404,4 +428,32 @@ if (digitalRead(CLOCK_PIN)==LOW){
       transmit_MP3[3] = 0;
       break;  
   }
- }
+
+// Reading the sensores state from Arduino:
+if (state == prev_state){
+  if (digitalRead(CLOCK_PIN)==LOW){
+    digitalWrite(COMM_MP3_CLOCK_PIN, LOW);
+    delay(50);
+    for (int i=0; i<4 ; i++){
+      if(digitalRead(CLOCK_PIN)==HIGH){
+        Serial.print(digitalRead(ARD_PIN));
+        Serial.print(' ');
+        Serial.println(i);
+        ard_code[i] = digitalRead(ARD_PIN);
+        delay(150);
+      }
+      else{
+        i--;
+      }
+    }
+    digitalWrite(COMM_MP3_CLOCK_PIN, HIGH);
+  
+  }
+  else {
+    delay(1500);
+  }
+    OUTER_BOX_SENSOR_STATE = ard_code[0];
+    INSIDE_BOX_TEA_STATE = ard_code[1];
+    INSIDE_BOX_COFFEE_STATE = ard_code[2];
+  }
+}
