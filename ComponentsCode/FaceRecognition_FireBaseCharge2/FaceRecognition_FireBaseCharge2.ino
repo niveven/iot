@@ -205,6 +205,7 @@ void transmitState(int *transmit)
 {
   digitalWrite(COMM_MP3_CLOCK_PIN, LOW);
   Serial.println("Strating Transmit");
+  delay(300);
   while (digitalRead(CLOCK_PIN) == HIGH)
   {
   }
@@ -326,12 +327,13 @@ void loop()
     if (faceRecognitionCounter == 20)
     {
       //PLAY "FACE_FAIL" SOUND:
-      //transmit_MP3[2] = 1;
-      //transmitState(transmit_MP3);
-      //transmit_MP3[2] = 0;
+      transmit_MP3[2] = 1;
+      transmitState(transmit_MP3);
+      transmit_MP3[2] = 0;
       //Change state back to begining:
-      state = 1;
+      //state = 2;
       faceRecognitionCounter = 0;
+      delay(500);
       break;
     }
     faceRecognitionCounter += 1;
@@ -341,11 +343,11 @@ void loop()
     {
       str_id[0] = 0;
       sprintf(str_id, "/%d", faceID_recognized);
-      //PLAY "FACE_OK" SOUND:
+           //PLAY "FACE_OK" SOUND:
       transmit_MP3[1] = 1;
       transmitState(transmit_MP3);
       transmit_MP3[1] = 0;
-      //change state:
+           //change state:
       state = 3;
     }
     break;
@@ -432,8 +434,8 @@ void loop()
   }
 
   // Reading the sensores state from Arduino:
-  if (state == prev_state)
-  {
+  //if (state == prev_state)
+  //{
     if (digitalRead(CLOCK_PIN) == LOW)
     {
       digitalWrite(COMM_MP3_CLOCK_PIN, LOW);
@@ -444,7 +446,7 @@ void loop()
         {
           ard_code[i] = digitalRead(ARD_PIN);
           delay(200);
-          Serial.print(ard_code[i]);
+          Serial.print(digitalRead(ARD_PIN));
           Serial.print(' ');
           Serial.println(i);
         }
@@ -462,5 +464,5 @@ void loop()
     OUTER_BOX_SENSOR_STATE = ard_code[0];
     INSIDE_BOX_TEA_STATE = ard_code[1];
     INSIDE_BOX_COFFEE_STATE = ard_code[2];
-  }
+  //}
 }

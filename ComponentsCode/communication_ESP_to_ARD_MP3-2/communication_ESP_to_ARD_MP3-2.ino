@@ -20,7 +20,7 @@ char PLAY_FACE_OK = 0;
 char PLAY_FACE_FAIL = 0;
 char PLAY_GOODBYE = 0;
 
-#define LOOP_MAX_TIME 5000
+#define LOOP_MAX_TIME 15000
 int inf_loop_check = 0;
 
 //Not in use anymore;
@@ -50,7 +50,7 @@ int FLYING_FISH_INPUT_OUTER_BOX = 10;
 void transmitState(int *transmit)
 {
   analogWrite(CLOCK_PIN, 0);
-  Serial.print("Strating Transmit");
+  Serial.println("Strating Transmit");
   while (analogRead(CLOCK_MP3_PIN) > 450)
   {
   }
@@ -96,11 +96,13 @@ void loop()
   // Getting information from ESP about what sound to play:
   //Serial.print("CLOCK - ");
   //Serial.println(analogRead(CLOCK_MP3_PIN));
+  delay(1500);
   if (analogRead(CLOCK_MP3_PIN) < 500)
   {
     inf_loop_check = 0;
     //Serial.print("Sound Code: ");
     analogWrite(CLOCK_PIN, 0);
+    delay(50);
     for (int i = 0; i < 4; i++)
     {
       if (inf_loop_check >= LOOP_MAX_TIME)
@@ -110,10 +112,10 @@ void loop()
       }
       if (analogRead(CLOCK_MP3_PIN) > 450)
       {
-        //Serial.print(i);
-        //Serial.print(" ");
-        //Serial.print(analogRead(ESP_PIN));
-        //Serial.print(" ");
+        Serial.print(i);
+        Serial.print(" ");
+        Serial.print(analogRead(ESP_PIN));
+        Serial.print(" ");
         ESP_code[i] = analogRead(ESP_PIN);
         delay(200);
         inf_loop_check += 200;
