@@ -136,11 +136,11 @@ void loop()
       mp3.setVolume(volume);
       delay(50); //you should wait for >=50ms between two commands
       mp3.playWithFileName(folderName, fileName);
-      delay(8000);
+      //delay(2000);
       fileName = 0;
     }
   }
-  delay(1500);
+  delay(1000);
 }
 
 

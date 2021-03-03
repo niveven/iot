@@ -9,6 +9,16 @@
 #define ENROLL_CONFIRM_TIMES 5
 #define FACE_ID_SAVE_NUMBER 7
 
+/* Code from webserver*/
+
+#define CAMERA_MODEL_AI_THINKER
+#include "camera_pins.h"
+
+void stop_webserver();
+int startCameraServer();
+/*End of Code from webserver*/
+
+
 unsigned long currentMillis = 0;
 unsigned long openedMillis = 0;
 long interval = 5000; // open lock for ... milliseconds
@@ -53,10 +63,10 @@ bool is_sound_played = false;
 FirebaseData firebaseData;
 int faceRecognitionCounter = 0;
 int faceID_recognized = -1;
-char firebase_credit[256] = "";
-char str_id[256] = "";
+char firebase_credit[256] = ""; // TODO:CHECK
+String str_id;
+String slash;
 int val = -1;
-
 /////////////////////////////////////////
 /////////////////////////////////////////
 
@@ -69,9 +79,9 @@ void connectWifi()
     delay(500);
     Serial.print(".");
   }
-  //Serial.println(".......");
-  //Serial.println("WiFi Connected....IP Address:");
-  //Serial.println(WiFi.localIP());
+  Serial.println(".......");
+  Serial.println("WiFi Connected....IP Address:");
+  Serial.println(WiFi.localIP());
 }
 
 //////////////////////////////////////////
@@ -184,14 +194,15 @@ int run_face_recognition()
 
 ////////////////////////////////////////////////////
 /////////////////////////////////////////////////////
-
+int is_server = -1;
 void setup()
 {
   
   Serial.begin(9600, SERIAL_8N1);
   connectWifi();
   Firebase.begin("https://coffeeiot-c846f.firebaseio.com", "ZJqbWyM3KpiLSk7zLaPWC06JEnfsbT5bDov0Zr7K");
-
+  str_id = String();
+  slash = String("/");
   digitalWrite(relayPin, LOW);
   pinMode(relayPin, OUTPUT);
 
@@ -223,7 +234,7 @@ void setup()
   esp_err_t err = esp_camera_init(&config);
   if (err != ESP_OK)
   {
-    //Serial.printf("Camera init failed with error 0x%x", err);
+    Serial.printf("Camera init failed with error 0x%x", err);
     return;
   }
 
@@ -233,6 +244,10 @@ void setup()
 
   face_id_init(&id_list, FACE_ID_SAVE_NUMBER, ENROLL_CONFIRM_TIMES);
   read_face_id_from_flash(&id_list); // Read current face data from on-board flash
+
+  //Serial.print("Camera Ready! Use 'http://");
+  Serial.print(WiFi.localIP());
+/* End of Code from webserver*/
 }
 
 ////////////////////////////////////////////////////
@@ -250,12 +265,17 @@ void loop()
      // Serial.println();
       //End of debug prints
       
-      if (sensors_state == "0"){
-       // Serial.println("inside IF 0");
-        TEA_BOX_STATE = 0;
-        COFFEE_BOX_STATE = 0;
-        OUTER_BOX_STATE = 0;
-      }
+      //Setting Sensor variables to zeros:
+      if (sensors_state == "1" || sensors_state == "11" || sensors_state == "10" || sensors_state == "0"){ 
+      //  Serial.println("inside IF 1");
+        OUTER_BOX_STATE = 0;}
+      if (sensors_state == "101" || sensors_state == "100" || sensors_state == "1" || sensors_state ==  "0"){
+        //Serial.println("inside IF 2");
+        COFFEE_BOX_STATE = 0;} 
+      if (sensors_state == "100"|| sensors_state == "110" || sensors_state == "10" || sensors_state == "0"){
+        //Serial.println("inside IF 3");
+        TEA_BOX_STATE = 0;}
+      //Setting Sensor variables to ones:        
       if (sensors_state == "1" || sensors_state == "11" || sensors_state == "101" || sensors_state == "111"){ 
       //  Serial.println("inside IF 1");
         TEA_BOX_STATE = 1;}
@@ -267,6 +287,19 @@ void loop()
         OUTER_BOX_STATE = 1;}
     //Serial.println();
     }
+  
+/* Code from webserver*/
+  if ((is_server !=0) && (OUTER_BOX_STATE == 0) && (state == 0)){
+  is_server = startCameraServer();
+  }
+  
+  if ((OUTER_BOX_STATE == 1) && (is_server == 0)){
+  Serial.println(" Stopping server! ");
+  stop_webserver();
+  is_server = -1;
+  Firebase.begin("https://coffeeiot-c846f.firebaseio.com", "ZJqbWyM3KpiLSk7zLaPWC06JEnfsbT5bDov0Zr7K");
+  delay(15000);
+} 
  
   // Machine logic according to states:
   switch (state)
@@ -319,8 +352,11 @@ void loop()
     //faceID_recognized = 1;
     if (faceID_recognized >= 0)
     {
-      str_id[0] = 0;
+      //itoa(faceID_recognized,str_id,10);
+      //str_id[0] = faceID_recognized;
+      //Serial.println(faceID_recognized); Debug print
       // Play "Face OK":
+      str_id = slash + faceID_recognized;
       Serial.print(11);
       delay(3000);
       //change state:
@@ -401,18 +437,27 @@ void loop()
     // Case 6: User finished purchase - update the DB:
   case 6: //Charged customer in firebase
     if (state != prev_state){
-      Serial.print(7);
+      Serial.println(7);
       delay(3000);
       prev_state = state;
     }
+    
+    //sprintf(str_id,"/%s",str_id);
+    Serial.print("ID: ");
+    Serial.println(str_id);
    // Serial.println("CASE 6");
-    if (Firebase.getInt(firebaseData, str_id))
+  
+    if (Firebase.getInt(firebaseData, "/0"))
     {
+      Serial.println("I");
       if (firebaseData.dataType() == "int")
       {
+        Serial.println("J");
         val = firebaseData.intData();
-        if (val > 0)
+        Serial.println(val);
+        if (val > 0)                      //TODO: check if change!
         {
+          Serial.println("K");
           firebase_credit[0] = 0;
           firebase_credit[0] = 0;
           Firebase.setInt(firebaseData, str_id, val - cost);
@@ -421,9 +466,12 @@ void loop()
         faceRecognitionCounter = 0;
       }
     }
+    else {
+      Serial.println("Unable to getInt");
+    }
     //PLAY GOODBYE SOUND:
     Serial.print(13);
-    delay(2000);
+    delay(7000);
     state=0;
     break;
     
