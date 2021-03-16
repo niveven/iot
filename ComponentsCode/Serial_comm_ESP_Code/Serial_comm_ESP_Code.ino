@@ -27,8 +27,12 @@ long interval = 5000; // open lock for ... milliseconds
 // WiFi parameters:
 ////////////////////////////////////////////
 
-const char *ssid = "niv";
-const char *password = "204442321";
+//const char *ssid = "niv";
+//const char *password = "204442321";
+
+const char *ssid = "Oded2.4";
+const char *password = "67321daoa";
+
 
 ////////////////////////////////////////////
 // Pins Used in the ESP:
@@ -50,12 +54,17 @@ int COFFEE_BOX_STATE = 0;
 String sensors_state;
   
 // Sensors and states' variables:
+const int  buttonPin = 2;    // the pin that the "mode" button is attached to
+int buttonState = 1;         // current state of the button
+int lastButtonState = 0;     // previous state of the button
 int state = 0;
 int prev_state = -1;
 // Prices for drinks:
 int coffee_price = 1;
 int tea_price = 2;
 int cost = 0;
+int used_coffee = 0;
+int used_tea = 0;
 
 // Face recognition and DB variables:
 bool is_identified = false;
@@ -200,7 +209,7 @@ void setup()
   
   Serial.begin(9600, SERIAL_8N1);
   connectWifi();
-  Firebase.begin("https://coffeeiot-c846f.firebaseio.com", "ZJqbWyM3KpiLSk7zLaPWC06JEnfsbT5bDov0Zr7K");
+ //Firebase.begin("https://coffeeiot-c846f.firebaseio.com", "ZJqbWyM3KpiLSk7zLaPWC06JEnfsbT5bDov0Zr7K");
   str_id = String();
   slash = String("/");
   digitalWrite(relayPin, LOW);
@@ -247,6 +256,11 @@ void setup()
 
   //Serial.print("Camera Ready! Use 'http://");
   Serial.print(WiFi.localIP());
+
+  //Firebase.begin("https://coffeeiot-c846f.firebaseio.com", "ZJqbWyM3KpiLSk7zLaPWC06JEnfsbT5bDov0Zr7K");
+
+    pinMode(buttonPin, INPUT);
+
 /* End of Code from webserver*/
 }
 
@@ -255,225 +269,255 @@ void setup()
 
 void loop()
 {
-  
- // Reading the sensores state from Arduino:
-    if(Serial.available() > 0){
-      sensors_state = Serial.readString();
-      
-      //Debug prints:
-      //Serial.print(sensors_state);
-     // Serial.println();
-      //End of debug prints
-      
-      //Setting Sensor variables to zeros:
-      if (sensors_state == "1" || sensors_state == "11" || sensors_state == "10" || sensors_state == "0"){ 
-      //  Serial.println("inside IF 1");
-        OUTER_BOX_STATE = 0;}
-      if (sensors_state == "101" || sensors_state == "100" || sensors_state == "1" || sensors_state ==  "0"){
-        //Serial.println("inside IF 2");
-        COFFEE_BOX_STATE = 0;} 
-      if (sensors_state == "100"|| sensors_state == "110" || sensors_state == "10" || sensors_state == "0"){
-        //Serial.println("inside IF 3");
-        TEA_BOX_STATE = 0;}
-      //Setting Sensor variables to ones:        
-      if (sensors_state == "1" || sensors_state == "11" || sensors_state == "101" || sensors_state == "111"){ 
-      //  Serial.println("inside IF 1");
-        TEA_BOX_STATE = 1;}
-      if (sensors_state == "10" || sensors_state == "11" || sensors_state == "110" || sensors_state ==  "111"){
-        //Serial.println("inside IF 2");
-        COFFEE_BOX_STATE = 1;} 
-      if (sensors_state == "100"|| sensors_state == "101" || sensors_state == "110" || sensors_state == "111"){
-        //Serial.println("inside IF 3");
-        OUTER_BOX_STATE = 1;}
-    //Serial.println();
-    }
-  
-/* Code from webserver*/
-  if ((is_server !=0) && (OUTER_BOX_STATE == 0) && (state == 0)){
-  is_server = startCameraServer();
-  }
-  
-  if ((OUTER_BOX_STATE == 1) && (is_server == 0)){
-  Serial.println(" Stopping server! ");
-  stop_webserver();
-  is_server = -1;
-  Firebase.begin("https://coffeeiot-c846f.firebaseio.com", "ZJqbWyM3KpiLSk7zLaPWC06JEnfsbT5bDov0Zr7K");
-  delay(15000);
-} 
- 
-  // Machine logic according to states:
-  switch (state)
-  {
-    // Case 0: Standby mode, Case is closed, Waiting for a user to open the lid:
-  case 0:
-  //  Serial.println("CASE 0");
-    if (state != prev_state){
-      Serial.print(1);
-      delay(3000);
-      prev_state = state;
-    }
-    if (OUTER_BOX_STATE == 1)
-    {
-      state = 1;
-    }
-    break;
 
-    // Case 1: Outer lid is opened by a user, a voice prompt is sent:
-  case 1:
-    if (state != prev_state){
-      Serial.print(2);
-      delay(3000);
-      prev_state = state;
-    }
-    state = 2;
-    //PLAY GREETING SOUND:
-    Serial.print(10);
-    delay(3000);
-    break;
-
-    // Case 2: Outer lid is open & the voice propmt was made, starting voice recognition attempts(Face recognised - move to case #3, 20 failed attempts - back to state #1):
-  case 2:
-    if (state != prev_state){
-      Serial.print(3);
-      delay(3000);
-      prev_state = state;
-    }
-    if (faceRecognitionCounter == 20)
-    {
-      //PLAY "FACE_FAIL" SOUND:
-      Serial.print(12);
-      delay(3000);
-      //Change state back to begining (state still = 2):
-      faceRecognitionCounter = 0;
-      break;
-    }
-    faceRecognitionCounter += 1;
-    faceID_recognized = rzoCheckForFace();
-    //faceID_recognized = 1;
-    if (faceID_recognized >= 0)
-    {
-      //itoa(faceID_recognized,str_id,10);
-      //str_id[0] = faceID_recognized;
-      //Serial.println(faceID_recognized); Debug print
-      // Play "Face OK":
-      str_id = slash + faceID_recognized;
-      Serial.print(11);
-      delay(3000);
-      //change state:
-      state = 3;
-    }
-    break;
-
-    // Case 3: The User face was recognised, waiting for coffee/tea box to be opened:
-  case 3:
-    if (state != prev_state){
-      Serial.print(4);
-      delay(3000);
-      prev_state = state;
-    }
-    cost = 0;
-    if (TEA_BOX_STATE == 1 || COFFEE_BOX_STATE == 1)
-    {
-      if (TEA_BOX_STATE == 1)
-      {
-        cost += tea_price;
-        state = 4;
-        break;
+// read the pushbutton input pin:
+  buttonState = digitalRead(buttonPin);
+// compare the buttonState to its previous state,  "1" means registration mode:
+  if ((buttonState != lastButtonState) && (buttonState == 1)) {
+          startCameraServer();
+          Serial.println("start server");
       }
-      if (COFFEE_BOX_STATE == 1)
-      {
-        cost += coffee_price;
-        state = 5;
-        break;
-      }
-    }
-    break;
-
-    // Case 4: Recognised that the coffee box was opened, updating the bill for the user:
-  case 4:
-    if (state != prev_state){
-      Serial.print(5);
-      delay(3000);
-      prev_state = state;
-    }
-  //  Serial.println("CASE 4");
-    if (COFFEE_BOX_STATE == 1)
-    {
-      cost += coffee_price;
-      state = 6;
-      delay(5000);
-      break;
-    }
-    else if (OUTER_BOX_STATE == 0)
-    {
-      state = 6;
-      delay(5000);
-      break;
-    }
-    break;
-
-    // Case 5: Recognised that the tea box was opened, updating the bill for the user:
-  case 5:
-    if (state != prev_state){
-      Serial.print(6);
-      delay(3000);
-      prev_state = state;
-    }
-    if (TEA_BOX_STATE == 1)
-    {
-      cost += tea_price;
-      state = 6;
-      delay(5000);
-      break;
-    }
-    else if (OUTER_BOX_STATE == 0)
-    {
-      state = 6;
-      delay(5000);
-      break;
-    }
-    break;
-
-    // Case 6: User finished purchase - update the DB:
-  case 6: //Charged customer in firebase
-    if (state != prev_state){
-      Serial.println(7);
-      delay(3000);
-      prev_state = state;
-    }
-    
-    //sprintf(str_id,"/%s",str_id);
-    Serial.print("ID: ");
-    Serial.println(str_id);
-   // Serial.println("CASE 6");
-  
-    if (Firebase.getInt(firebaseData, "/0"))
-    {
-      Serial.println("I");
-      if (firebaseData.dataType() == "int")
-      {
-        Serial.println("J");
-        val = firebaseData.intData();
-        Serial.println(val);
-        if (val > 0)                      //TODO: check if change!
-        {
-          Serial.println("K");
-          firebase_credit[0] = 0;
-          firebase_credit[0] = 0;
-          Firebase.setInt(firebaseData, str_id, val - cost);
-          state = 0;
-        }
-        faceRecognitionCounter = 0;
-      }
-    }
     else {
-      Serial.println("Unable to getInt");
-    }
-    //PLAY GOODBYE SOUND:
-    Serial.print(13);
-    delay(7000);
-    state=0;
-    break;
+      if (buttonState != lastButtonState &&(buttonState == 0) ){
+        Serial.println("stopping server");
+        stop_webserver();
+        Firebase.begin("https://coffeeiot-c846f.firebaseio.com", "ZJqbWyM3KpiLSk7zLaPWC06JEnfsbT5bDov0Zr7K");
+        Serial.println("stopping done");
+        delay(20);
+        }
+        if (buttonState == 0){
+    // Reading the sensores state from Arduino:
+        if(Serial.available() > 0){
+          sensors_state = Serial.readString();
+          
+          //Debug prints:
+          //Serial.print(sensors_state);
+         // Serial.println();
+          //End of debug prints
+          
+          //Setting Sensor variables to zeros:
+          if (sensors_state == "1" || sensors_state == "11" || sensors_state == "10" || sensors_state == "0"){ 
+          //  Serial.println("inside IF 1");
+            OUTER_BOX_STATE = 0;}
+          if (sensors_state == "101" || sensors_state == "100" || sensors_state == "1" || sensors_state ==  "0"){
+            //Serial.println("inside IF 2");
+            COFFEE_BOX_STATE = 0;} 
+          if (sensors_state == "100"|| sensors_state == "110" || sensors_state == "10" || sensors_state == "0"){
+            //Serial.println("inside IF 3");
+            TEA_BOX_STATE = 0;}
+            
+          //Setting Sensor variables to ones:        
+          if (sensors_state == "1" || sensors_state == "11" || sensors_state == "101" || sensors_state == "111"){ 
+          //  Serial.println("inside IF 1");
+            TEA_BOX_STATE = 1;}
+          if (sensors_state == "10" || sensors_state == "11" || sensors_state == "110" || sensors_state ==  "111"){
+            //Serial.println("inside IF 2");
+            COFFEE_BOX_STATE = 1;} 
+          if (sensors_state == "100"|| sensors_state == "101" || sensors_state == "110" || sensors_state == "111"){
+            //Serial.println("inside IF 3");
+            OUTER_BOX_STATE = 1;}
+        //Serial.println();
+        }
+      // Machine logic according to states:
+      switch (state)
+      {
+        // Case 0: Standby mode, Case is closed, Waiting for a user to open the lid:
+      case 0:
+      //  Serial.println("CASE 0");
+        if (state != prev_state){
+          Serial.print(1);
+          delay(2000);
+          prev_state = state;
+        }
+        if (OUTER_BOX_STATE == 1)
+        {
+          state = 1;
+        }
+        break;
     
-  }
+        // Case 1: Outer lid is opened by a user, a voice prompt is sent:
+      case 1:
+        if (state != prev_state){
+          Serial.print(2);
+          delay(2500);
+          prev_state = state;
+        }
+        state = 2;
+        //PLAY GREETING SOUND:
+        Serial.print(10);
+        delay(2500);
+        break;
+    
+        // Case 2: Outer lid is open & the voice propmt was made, starting face recognition attempts(Face recognised - move to case #3, 20 failed attempts - back to state #1):
+      case 2:
+        if (state != prev_state){
+          Serial.print(3);
+          delay(2000);
+          prev_state = state;
+        }
+        if ((faceRecognitionCounter%25 == 0) && (faceRecognitionCounter!=0))
+        {
+          //PLAY "FACE_FAIL" SOUND:
+          Serial.print(12);
+          delay(2000);
+          //Change state back to begining (state still = 2):
+          if (faceRecognitionCounter = 125){
+            faceRecognitionCounter = 0;
+            state = 0;
+            delay(2500);
+            //TODO add a sound
+            }
+          break;
+        }
+        faceRecognitionCounter += 1;
+        faceID_recognized = rzoCheckForFace();
+        //faceID_recognized = 1;
+        if (faceID_recognized >= 0)
+        {
+          //itoa(faceID_recognized,str_id,10);
+          //str_id[0] = faceID_recognized;
+          //Serial.println(faceID_recognized); Debug print
+          // Play "Face OK":
+          str_id = slash + faceID_recognized;
+          Serial.print(11);
+          delay(2000);
+          //change state:
+          state = 3;
+        }
+        break;
+    
+        // Case 3: The User face was recognised, waiting for coffee/tea box to be opened:
+      case 3:
+        if (state != prev_state){
+          Serial.print(4);
+          delay(2000);
+          prev_state = state;
+        }
+        cost = 0;
+        if (TEA_BOX_STATE == 1 || COFFEE_BOX_STATE == 1)
+        {
+          if (TEA_BOX_STATE == 1)
+          {
+            cost += tea_price;
+            used_tea = 1;
+            state = 4;
+            break;
+          }
+          if (COFFEE_BOX_STATE == 1)
+          {
+            cost += coffee_price;
+            used_coffee = 1;
+            state = 5;
+            break;
+          }
+        }
+        else if (OUTER_BOX_STATE == 0 && TEA_BOX_STATE == 0 && COFFEE_BOX_STATE == 0)
+        {
+          state = 6;
+          delay(2000);
+          break;
+        }
+        break;
+    
+        // Case 4: Recognised that the coffee box was opened, updating the bill for the user:
+      case 4:
+        if (state != prev_state){
+          Serial.print(5);
+          delay(2000);
+          prev_state = state;
+        }
+      //  Serial.println("CASE 4");
+        if ((COFFEE_BOX_STATE == 1) && (used_coffee == 0))
+        {
+          cost += coffee_price;
+          used_coffee = 1;
+          //state = 6;
+          delay(2000);
+          break;
+        }
+        else if (OUTER_BOX_STATE == 0)
+        {
+          state = 6;
+          delay(2000);
+          break;
+        }
+        break;
+    
+        // Case 5: Recognised that the tea box was opened, updating the bill for the user:
+      case 5:
+        if (state != prev_state){
+          Serial.print(6);
+          delay(2000);
+          prev_state = state;
+        }
+        if ((TEA_BOX_STATE == 1) && (used_tea == 0))
+        {
+          cost += tea_price;
+          used_tea = 1;
+          //state = 6;
+          delay(2000);
+          break;
+        }
+        else if (OUTER_BOX_STATE == 0)
+        {
+          state = 6;
+          delay(2000);
+          break;
+        }
+        break;
+    
+        // Case 6: User finished purchase - update the DB:
+      case 6: //Charged customer in firebase
+        if (state != prev_state){
+          Serial.println(7);
+          delay(2000);
+          prev_state = state;
+        }
+
+        if(used_coffee == 0 && used_tea == 0) {
+          Serial.print(14);
+          delay(5000);
+          state=0;
+          break;
+        }
+        if (Firebase.getInt(firebaseData, str_id))
+        {
+           if (firebaseData.dataType() == "int")
+          {
+            val = firebaseData.intData();
+            firebase_credit[0] = 0;
+            firebase_credit[0] = 0;
+            Firebase.setInt(firebaseData, str_id, val - cost);
+    
+            //Updating quota of coffee/tea:
+        if (used_coffee == 1){
+          if (Firebase.getInt(firebaseData, slash + "-10")){
+            val = firebaseData.intData();
+            Firebase.setInt(firebaseData,slash + "-10", val - 1);
+            }
+          used_coffee = 0;  
+        }
+    
+        if (used_tea == 1){
+          if (Firebase.getInt(firebaseData, slash + "-20")){
+            val = firebaseData.intData();
+            Firebase.setInt(firebaseData,slash + "-20", val - 1);
+            }
+          used_tea = 0;  
+        }
+        
+        state = 0;
+        faceRecognitionCounter = 0;
+          }
+        }
+        //PLAY GOODBYE SOUND:
+        Serial.print(13);
+        delay(5000);
+        state=0;
+        break;
+        }
+      }
+    }
+    delay(50);
+    lastButtonState = buttonState;
 }

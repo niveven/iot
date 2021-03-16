@@ -72,7 +72,7 @@ void loop()
   old_transmit = transmit;
   
   //Accepting data about sound to play from the ESP:
-  portDebug.println("checking input");
+ //portDebug.println("checking input");
   if (Serial.available() > 0) {
     string = Serial.readString();
     portDebug.println();
@@ -96,6 +96,10 @@ void loop()
     else if (string == "13"){
         portDebug.println("got 13 - Playing Goodbye");
         fileName = 0x04;
+    }
+        else if (string == "14"){
+        portDebug.println("got 14 - Playing No Charge");
+        fileName = 0x05;
     }
     
       // Debug prints:
