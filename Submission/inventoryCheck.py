@@ -59,10 +59,12 @@ def check_users():
             users_debt.update({users_list[i]: current_user_money})
     mail_content = f'The following users currently have debts:<br />'
     for user, money in users_debt.items():
-        mail_content += f'User <b>{user}</b> owes {abs(money)} shekels<br />'
+        mail_content += f'User <b>{user}</b> owes <b>{abs(money)}</b> shekels<br />'
     send_mail('Users Debt', mail_content)
 
 
 if __name__ == "__main__":
     check_coffee_tea_count();
     check_users();
+
+    
